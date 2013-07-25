@@ -25,9 +25,9 @@ var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
 var rest = require('restler');
-var HTMLFILE_DEFAULT = "test1.html";
+var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
-var URL_DEFAULT = "http://quiet-oasis-4761.herokuapp.com/";
+var URL_DEFAULT = "http://enigmatic-taiga-7127.herokuapp.com/";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -46,19 +46,26 @@ var loadChecks = function(checksfile) {
     return JSON.parse(fs.readFileSync(checksfile));
 };
 
-var cheerioUrlFile = function(urltofile) {
+var checkUrlFile = function(urltofile, checksfile) {
     rest.get('urltofile').on('complete', function(result) {
 	if (result instanceof Error) {
-	    console.log("URL did not respond correctly. Exiting.");
+	    console.log("URL did not respond correctly. Exiting.  " + result.message + urltofile);
 	    process.exit(1);
+	} else {
+	    $ = cheerio.load(result);
+	    var checks = loadChecks(checksfile).sort();
+	    var out = {};
+	    for (var ii in checks) {
+		var present = $(checks[ii]).length > 0;
+		out[checks[ii]] = present;
+	    }
+	    return out;
 	}
-	return cheerio.load(result);
-    })
+    });
 };
 
-var checkHtmlFile = function(htmlfile, checksfile, urltofile) {
-    if (urltofile) $ = cheerioUrlFile(urltofile)
-    else $ = cheerioHtmlFile(htmlfile);
+var checkHtmlFile = function(htmlfile, checksfile) {
+    $ = cheerioHtmlFile(htmlfile);
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
@@ -80,9 +87,15 @@ if(require.main == module) {
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-u, --url <url_to_file>', 'Url to web-page')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks, program.url);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    if (program.url) {
+	var checkUrlJson = checkUrlFile(program.url, program.checs);
+	var outUrlJson = JSON.stringify(checkUrlJson, null, 4);
+	console.log(outUrlJson);
+    } else {
+	var checkJson = checkHtmlFile(program.file, program.checks);
+	var outJson = JSON.stringify(checkJson, null, 4);
+	console.log(outJson);
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
